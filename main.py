@@ -148,7 +148,7 @@ async def daily_poster():
                 timestamp=now
             )
             embed.set_footer(text="参加希望の方は下のボタンをクリックしてください")
-            latest_message = await channel.send(embed=embed, view=JoinButtonView())
+            latest_message = await channel.send(content="@everyone", embed=embed, view=JoinButtonView())
 
 # --- 5分前通知ループ ---
 @tasks.loop(minutes=1)
