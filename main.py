@@ -32,7 +32,7 @@ TIER_MAP = {
     "レディアント": 34
 }
 
-# --- 状態 ---
+# --- 状態管理 ---
 latest_message = None
 participant_data = OrderedDict()  # uid: (name, rank_str, rank, tier)
 event_start_time = None
@@ -99,7 +99,7 @@ class JoinButtonView(discord.ui.View):
         else:
             await interaction.response.send_message("⚠️ まだ参加していません。", ephemeral=True)
 
-# --- Embed更新 ---
+# --- 埋め込み更新（昇格処理あり） ---
 async def update_participant_embed():
     if not latest_message:
         return
@@ -108,22 +108,27 @@ async def update_participant_embed():
     if base_rank is None:
         return
 
-    normal, full = [], []
+    temp_normals = []
+    temp_full = []
 
     for uid, (name, r_str, r, t) in participant_data.items():
         if uid == next(iter(participant_data)):
-            normal.append(f"- {name}")
+            temp_normals.append((uid, name))  # 基準者は無条件
         elif is_valid_by_base(r, t, base_rank, base_tier):
-            normal.append(f"- {name}")
+            temp_normals.append((uid, name))
         else:
-            full.append(f"- {name}")
+            temp_full.append((uid, name))
+
+    # 上位5人まで通常参加、それ以降は全員フルパ
+    normal = [f"- {name}" for _, name in temp_normals[:5]]
+    full = [f"- {name}" for _, name in temp_normals[5:]] + [f"- {name}" for _, name in temp_full]
 
     embed = latest_message.embeds[0]
     embed.title = "🎮 VALORANT 定期募集（21:00 開始予定）"
     embed.description = (
         f"🕒 基準ランク：{base_rank_str}　フルパ：無制限\n\n"
-        "**🟢 通常参加者（条件内）**\n" + ("\n".join(normal) if normal else "（なし）") +
-        "\n\n**🔴 フルパ待機者（条件外）**\n" + ("\n".join(full) if full else "（なし）")
+        "**🟢 通常参加者（条件内・最大5人）**\n" + ("\n".join(normal) if normal else "（なし）") +
+        "\n\n**🔴 フルパ待機者（条件外または6人目以降）**\n" + ("\n".join(full) if full else "（なし）")
     )
 
     view = None if len(participant_data) >= 5 else JoinButtonView()
@@ -145,8 +150,8 @@ async def daily_poster():
             embed = discord.Embed(
                 title="🎮 VALORANT 定期募集（21:00 開始予定）",
                 description="🕒 基準ランク：未設定　フルパ：無制限\n\n"
-                            "**🟢 通常参加者（条件内）**\n（なし）\n\n"
-                            "**🔴 フルパ待機者（条件外）**\n（なし）",
+                            "**🟢 通常参加者（条件内・最大5人）**\n（なし）\n\n"
+                            "**🔴 フルパ待機者（条件外または6人目以降）**\n（なし）",
                 color=discord.Color.blurple(),
                 timestamp=now
             )
