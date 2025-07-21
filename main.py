@@ -38,20 +38,18 @@ participant_data = OrderedDict()  # uid: (name, rank_str, rank, tier)
 event_start_time = None
 reminded_users = set()
 
-# --- 判定ロジック ---
 def is_valid_by_base(new_rank, new_tier, base_rank, base_tier):
-    if new_tier >= 25 or base_tier >= 25:  # ダイヤ以上が含まれる
+    if new_tier >= 25 or base_tier >= 25:
         if abs(new_tier - base_tier) > 6:
             return False
         return base_tier - 3 <= new_tier <= base_tier + 3
     else:
         return abs(new_rank - base_rank) <= 1
 
-# --- 基準取得 ---
 def get_base_participant():
-    for _, (_, _, rank, tier) in participant_data.items():
-        return rank, tier
-    return None, None
+    for _, (_, rank_str, rank, tier) in participant_data.items():
+        return rank_str, rank, tier
+    return "未設定", None, None
 
 # --- ランク選択 ---
 class RankSelect(discord.ui.Select):
@@ -106,7 +104,7 @@ async def update_participant_embed():
     if not latest_message:
         return
 
-    base_rank, base_tier = get_base_participant()
+    base_rank_str, base_rank, base_tier = get_base_participant()
     if base_rank is None:
         return
 
@@ -114,7 +112,7 @@ async def update_participant_embed():
 
     for uid, (name, r_str, r, t) in participant_data.items():
         if uid == next(iter(participant_data)):
-            normal.append(f"- {name}（{r_str}）")  # 基準者は常に通常
+            normal.append(f"- {name}（{r_str}）")
         elif is_valid_by_base(r, t, base_rank, base_tier):
             normal.append(f"- {name}（{r_str}）")
         else:
@@ -123,7 +121,7 @@ async def update_participant_embed():
     embed = latest_message.embeds[0]
     embed.title = "🎮 VALORANT 定期募集（21:00 開始予定）"
     embed.description = (
-        "🕒 定期募集：コンペ（21:00開始）\n\n"
+        f"🕒 基準ランク：{base_rank_str}　フルパ：無制限\n\n"
         "**🟢 通常参加者（条件内）**\n" + ("\n".join(normal) if normal else "（なし）") +
         "\n\n**🔴 フルパ待機者（条件外）**\n" + ("\n".join(full) if full else "（なし）")
     )
@@ -131,7 +129,7 @@ async def update_participant_embed():
     view = None if len(participant_data) >= 5 else JoinButtonView()
     await latest_message.edit(embed=embed, view=view)
 
-# --- 18:30 投稿 ---
+# --- 投稿処理（18:30） ---
 @tasks.loop(minutes=1)
 async def daily_poster():
     global latest_message, participant_data, event_start_time, reminded_users
@@ -146,7 +144,7 @@ async def daily_poster():
         if channel:
             embed = discord.Embed(
                 title="🎮 VALORANT 定期募集（21:00 開始予定）",
-                description="🕒 定期募集：一緒にプレイしませんか？\n\n"
+                description="🕒 基準ランク：未設定　フルパ：無制限\n\n"
                             "**🟢 通常参加者（条件内）**\n（なし）\n\n"
                             "**🔴 フルパ待機者（条件外）**\n（なし）",
                 color=discord.Color.blurple(),
@@ -163,9 +161,8 @@ async def reminder_task():
 
     now = datetime.datetime.now(pytz.timezone("Asia/Tokyo"))
     delta = (event_start_time - now).total_seconds()
-
     if 0 < delta <= 300:
-        base_rank, base_tier = get_base_participant()
+        base_rank_str, base_rank, base_tier = get_base_participant()
         if base_rank is None:
             return
 
@@ -180,7 +177,7 @@ async def reminder_task():
         if mentions and channel:
             await channel.send(f"🔔 {', '.join(mentions)} ゲーム開始まであと5分です！")
 
-# --- 起動 ---
+# --- 起動処理 ---
 @bot.event
 async def on_ready():
     print(f"✅ Bot is online: {bot.user}")
