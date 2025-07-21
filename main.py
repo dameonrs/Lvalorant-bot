@@ -137,7 +137,7 @@ async def daily_poster():
     global latest_message, participant_data, event_start_time, reminded_users
 
     now = datetime.datetime.now(pytz.timezone("Asia/Tokyo"))
-    if now.hour == 17 and now.minute == 58:
+    if now.hour == 18 and now.minute == 30:
         participant_data.clear()
         reminded_users.clear()
         event_start_time = now.replace(hour=21, minute=0, second=0, microsecond=0)
@@ -153,7 +153,7 @@ async def daily_poster():
                 timestamp=now
             )
             embed.set_footer(text="参加希望の方は下のボタンをクリックしてください")
-            latest_message = await channel.send(content="テスト", embed=embed, view=JoinButtonView())
+            latest_message = await channel.send(content="@everyone", embed=embed, view=JoinButtonView())
 
 # --- 5分前通知 ---
 @tasks.loop(minutes=1)
