@@ -38,24 +38,64 @@ event_start_time = None
 reminded_users = set()
 
 # --- マッチング判定ロジック ---
-def is_valid_match(new_rank, new_tier, existing_participants):
-    if not existing_participants:
+def is_valid_match(base_rank, base_tier, others):
+    if base_rank <= 4:  # プラチナ以下
+        for rank, _ in others:
+            if abs(base_rank - rank) > 1:
+                return False
+        return True
+    else:  # ダイヤ以上含む場合
+        for _, tier in others:
+            if not (base_tier - 3 <= tier <= base_tier + 3):
+                return False
         return True
 
-    factors = [(rank, tier) for (_, _, rank, tier) in existing_participants.values()]
-    rank_factors = [r for r, _ in factors]
-    tier_factors = [t for _, t in factors]
+# --- 基準参加者の取得 ---
+def get_base_participant():
+    for uid, (_, _, rank, tier) in participant_data.items():
+        return uid, rank, tier
+    return None, None, None
 
-    if max(rank_factors) <= 4:  # プラチナ以下
-        max_rank = max(rank_factors)
-        min_rank = min(rank_factors)
-        if abs(new_rank - max_rank) > 1 or abs(new_rank - min_rank) > 1:
-            return False
-        return True
-    else:  # ダイヤ以上が含まれる
-        max_tier = max(tier_factors)
-        min_tier = min(tier_factors)
-        return (new_tier >= max_tier - 3) and (new_tier <= min_tier + 3)
+# --- 埋め込み更新 ---
+async def update_participant_embed():
+    if not latest_message:
+        return
+
+    base_uid, base_rank, base_tier = get_base_participant()
+    normal = []
+    fullparty = []
+
+    if base_uid is None:
+        embed = latest_message.embeds[0]
+        embed.title = "🎮 コンペ定期募集：ランク参加"
+        embed.description = (
+            "🕒 開始時間　21:00\n\n"
+            "**🟢 通常参加者（有効ランク差内）**\n（なし）\n\n"
+            "**🔴 フルパ待機者（ランク差あり）**\n（なし）"
+        )
+        await latest_message.edit(embed=embed, view=JoinButtonView())
+        return
+
+    for uid, (name, rank_str, rank_factor, tier_factor) in participant_data.items():
+        if uid == base_uid:
+            normal.append(f"- {name}（{rank_str}）")
+        elif is_valid_match(base_rank, base_tier, [(rank_factor, tier_factor)]):
+            normal.append(f"- {name}（{rank_str}）")
+        else:
+            fullparty.append(f"- {name}（{rank_str}）")
+
+    embed = latest_message.embeds[0]
+    embed.title = "🎮 コンペ定期募集：ランク参加"
+    embed.description = (
+        "🕒 開始時間　21:00\n\n"
+        "**🟢 通常参加者（有効ランク差内）**\n"
+        + ("\n".join(normal) if normal else "（なし）") +
+        "\n\n**🔴 フルパ待機者（ランク差あり）**\n"
+        + ("\n".join(fullparty) if fullparty else "（なし）")
+    )
+
+    view = None if len(participant_data) >= 5 else JoinButtonView()
+    await latest_message.edit(embed=embed, view=view)
 
 # --- UI: ランク選択 ---
 class RankSelect(discord.ui.Select):
@@ -71,12 +111,11 @@ class RankSelect(discord.ui.Select):
         rank_factor = RANK_FACTOR[rank_str]
         tier_factor = TIER_FACTOR[rank_str]
 
-        valid = is_valid_match(rank_factor, tier_factor, participant_data)
-
         participant_data[user_id] = (interaction.user.display_name, rank_str, rank_factor, tier_factor)
         await update_participant_embed()
 
-        if valid:
+        base_uid, base_rank, base_tier = get_base_participant()
+        if user_id == base_uid or is_valid_match(base_rank, base_tier, [(rank_factor, tier_factor)]):
             await interaction.followup.send(f"✅ あなたのランク「**{rank_str}**」を登録しました！", ephemeral=True)
         else:
             await interaction.followup.send(f"⚠️ ランク差によりフルパ待機扱いになります。「{rank_str}」登録済み。", ephemeral=True)
@@ -107,32 +146,6 @@ class JoinButtonView(discord.ui.View):
         else:
             await interaction.response.send_message("⚠️ まだ参加していません。", ephemeral=True)
 
-# --- 埋め込み更新 ---
-async def update_participant_embed():
-    if not latest_message:
-        return
-
-    normal = []
-    fullparty = []
-    for uid, (name, r_str, r_factor, t_factor) in participant_data.items():
-        if is_valid_match(r_factor, t_factor, {k: v for k, v in participant_data.items() if k != uid}):
-            normal.append(f"- {name}（{r_str}）")
-        else:
-            fullparty.append(f"- {name}（{r_str}）")
-
-    embed = latest_message.embeds[0]
-    embed.title = "🎮 コンペ定期募集：ランク参加"
-    embed.description = (
-        "🕒 開始時間　21:00\n\n"
-        "**🟢 通常参加者（有効ランク差内）**\n"
-        + ("\n".join(normal) if normal else "（なし）") +
-        "\n\n**🔴 フルパ待機者（ランク差あり）**\n"
-        + ("\n".join(fullparty) if fullparty else "（なし）")
-    )
-
-    view = None if len(participant_data) >= 5 else JoinButtonView()
-    await latest_message.edit(embed=embed, view=view)
-
 # --- 18:30 投稿ループ ---
 @tasks.loop(minutes=1)
 async def daily_poster():
@@ -140,7 +153,7 @@ async def daily_poster():
     jst = pytz.timezone("Asia/Tokyo")
     now = datetime.datetime.now(jst)
 
-    if now.hour == 16 and now.minute == 53:
+    if now.hour == 18 and now.minute == 30:
         participant_data.clear()
         reminded_users.clear()
         today = now.date()
@@ -155,7 +168,7 @@ async def daily_poster():
                 timestamp=now
             )
             embed.set_footer(text="参加希望の方は下のボタンをクリックしてください")
-            latest_message = await channel.send(content="テストです", embed=embed, view=JoinButtonView())
+            latest_message = await channel.send(embed=embed, view=JoinButtonView())
 
 # --- 5分前通知 ---
 @tasks.loop(minutes=1)
@@ -170,10 +183,13 @@ async def reminder_task():
     if 0 < delta <= 300:
         channel = bot.get_channel(CHANNEL_ID)
         mentions = []
+        base_uid, base_rank, base_tier = get_base_participant()
+
         for uid, (_, _, r, t) in participant_data.items():
-            if uid not in reminded_users and is_valid_match(r, t, participant_data):
-                mentions.append(f"<@{uid}>")
-                reminded_users.add(uid)
+            if uid not in reminded_users:
+                if uid == base_uid or is_valid_match(base_rank, base_tier, [(r, t)]):
+                    mentions.append(f"<@{uid}>")
+                    reminded_users.add(uid)
 
         if mentions and channel:
             await channel.send(f"🔔 {', '.join(mentions)} ゲーム開始まであと5分です！準備はOK？")
