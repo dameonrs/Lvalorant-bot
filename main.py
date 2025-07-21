@@ -140,7 +140,7 @@ async def daily_poster():
     jst = pytz.timezone("Asia/Tokyo")
     now = datetime.datetime.now(jst)
 
-    if now.hour == 16 and now.minute == 51:
+    if now.hour == 16 and now.minute == 53:
         participant_data.clear()
         reminded_users.clear()
         today = now.date()
