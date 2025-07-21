@@ -112,11 +112,11 @@ async def update_participant_embed():
 
     for uid, (name, r_str, r, t) in participant_data.items():
         if uid == next(iter(participant_data)):
-            normal.append(f"- {name}（{r_str}）")
+            normal.append(f"- {name}")
         elif is_valid_by_base(r, t, base_rank, base_tier):
-            normal.append(f"- {name}（{r_str}）")
+            normal.append(f"- {name}")
         else:
-            full.append(f"- {name}（{r_str}）")
+            full.append(f"- {name}")
 
     embed = latest_message.embeds[0]
     embed.title = "🎮 VALORANT 定期募集（21:00 開始予定）"
