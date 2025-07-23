@@ -99,29 +99,31 @@ class JoinButtonView(discord.ui.View):
         else:
             await interaction.response.send_message("⚠️ まだ参加していません。", ephemeral=True)
 
-# --- 埋め込み更新（昇格処理あり） ---
+# --- 埋め込み更新（修正済） ---
 async def update_participant_embed():
     if not latest_message:
         return
 
     base_rank_str, base_rank, base_tier = get_base_participant()
-    if base_rank is None:
-        return
 
     temp_normals = []
     temp_full = []
 
-    for uid, (name, r_str, r, t) in participant_data.items():
-        if uid == next(iter(participant_data)):
-            temp_normals.append((uid, name))  # 基準者は無条件
-        elif is_valid_by_base(r, t, base_rank, base_tier):
-            temp_normals.append((uid, name))
-        else:
-            temp_full.append((uid, name))
+    if base_rank is not None:
+        for uid, (name, r_str, r, t) in participant_data.items():
+            if uid == next(iter(participant_data)):
+                temp_normals.append((uid, name))  # 基準者は無条件
+            elif is_valid_by_base(r, t, base_rank, base_tier):
+                temp_normals.append((uid, name))
+            else:
+                temp_full.append((uid, name))
 
-    # 上位5人まで通常参加、それ以降は全員フルパ
-    normal = [f"- {name}" for _, name in temp_normals[:5]]
-    full = [f"- {name}" for _, name in temp_normals[5:]] + [f"- {name}" for _, name in temp_full]
+        normal = [f"- {name}" for _, name in temp_normals[:5]]
+        full = [f"- {name}" for _, name in temp_normals[5:]] + [f"- {name}" for _, name in temp_full]
+    else:
+        base_rank_str = "未設定"
+        normal = []
+        full = []
 
     embed = latest_message.embeds[0]
     embed.title = "🎮 VALORANT 定期募集（21:00 開始予定）"
