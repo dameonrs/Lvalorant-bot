@@ -118,6 +118,10 @@ async def update_participant_embed():
             else:
                 temp_full.append((uid, name))
 
+        # 通常枠不足を条件外から補う
+        while len(temp_normals) < 5 and temp_full:
+            temp_normals.append(temp_full.pop(0))
+
         normal = [f"- {name}" for _, name in temp_normals[:5]]
         full = [f"- {name}" for _, name in temp_normals[5:]] + [f"- {name}" for _, name in temp_full]
     else:
