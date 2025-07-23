@@ -155,7 +155,6 @@ async def daily_poster():
                             "**🟢 通常参加者（条件内・最大5人）**\n（なし）\n\n"
                             "**🔴 フルパ待機者（条件外または6人目以降）**\n（なし）",
                 color=discord.Color.blurple(),
-                timestamp=now
             )
             embed.set_footer(text="参加希望の方は下のボタンをクリックしてください")
             latest_message = await channel.send(content="@everyone", embed=embed, view=JoinButtonView())
