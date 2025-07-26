@@ -34,7 +34,7 @@ TIER_MAP = {
 
 # --- 状態管理 ---
 latest_message = None
-participant_data = OrderedDict()  # uid: (name, rank_str, rank, tier)
+participant_data = OrderedDict()
 event_start_time = None
 reminded_users = set()
 
@@ -78,13 +78,18 @@ class RankSelectView(discord.ui.View):
         super().__init__(timeout=None)
         self.add_item(RankSelect())
 
-# --- ボタンビュー ---
+# --- ボタンビュー（修正済） ---
 class JoinButtonView(discord.ui.View):
     def __init__(self):
         super().__init__(timeout=None)
 
     @discord.ui.button(label="🎮 参加する", style=discord.ButtonStyle.primary)
     async def join(self, interaction: discord.Interaction, button: discord.ui.Button):
+        now = datetime.datetime.now(pytz.timezone("Asia/Tokyo"))
+        if event_start_time and now >= event_start_time:
+            await interaction.response.send_message("⚠️ 開始時間を過ぎているため、参加できません。", ephemeral=True)
+            return
+
         if interaction.user.id in participant_data:
             await interaction.response.send_message("✅ 既に参加済みです。ランクを再登録するには選び直してください。", ephemeral=True)
         else:
@@ -92,6 +97,11 @@ class JoinButtonView(discord.ui.View):
 
     @discord.ui.button(label="❌ 取り消す", style=discord.ButtonStyle.danger)
     async def cancel(self, interaction: discord.Interaction, button: discord.ui.Button):
+        now = datetime.datetime.now(pytz.timezone("Asia/Tokyo"))
+        if event_start_time and now >= event_start_time:
+            await interaction.response.send_message("⚠️ 開始時間を過ぎているため、取り消しできません。", ephemeral=True)
+            return
+
         if interaction.user.id in participant_data:
             del participant_data[interaction.user.id]
             await update_participant_embed()
@@ -112,13 +122,12 @@ async def update_participant_embed():
     if base_rank is not None:
         for uid, (name, r_str, r, t) in participant_data.items():
             if uid == next(iter(participant_data)):
-                temp_normals.append((uid, name))  # 基準者は無条件
+                temp_normals.append((uid, name))
             elif is_valid_by_base(r, t, base_rank, base_tier):
                 temp_normals.append((uid, name))
             else:
                 temp_full.append((uid, name))
 
-        # 通常枠不足を条件外から補う
         while len(temp_normals) < 5 and temp_full:
             temp_normals.append(temp_full.pop(0))
 
@@ -137,7 +146,7 @@ async def update_participant_embed():
         "\n\n**🔴 フルパ待機者（条件外または6人目以降）**\n" + ("\n".join(full) if full else "（なし）")
     )
 
-    view = None if len(participant_data) >= 5 else JoinButtonView()
+    view = JoinButtonView()
     await latest_message.edit(embed=embed, view=view)
 
 # --- 投稿処理（18:30） ---
