@@ -120,9 +120,11 @@ async def update_participant_embed():
     temp_full = []
 
     if base_rank is not None:
-        for uid, (name, r_str, r, t) in participant_data.items():
-            if uid == next(iter(participant_data)):
-                temp_normals.append((uid, name))
+        for i, (uid, (name, r_str, r, t)) in enumerate(participant_data.items()):
+            if i == 0:
+                temp_normals.append((uid, name))  # 最初の人は無条件
+            elif i == 3:
+                temp_full.append((uid, name))  # 4人目は強制的に待機
             elif is_valid_by_base(r, t, base_rank, base_tier):
                 temp_normals.append((uid, name))
             else:
