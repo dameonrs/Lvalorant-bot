@@ -155,7 +155,7 @@ async def daily_poster():
     global latest_message, participant_data, event_start_time, reminded_users
 
     now = datetime.datetime.now(pytz.timezone("Asia/Tokyo"))
-    if now.hour == 18 and now.minute == 30:
+    if now.hour == 20 and now.minute == 20:
         participant_data.clear()
         reminded_users.clear()
         event_start_time = now.replace(hour=21, minute=0, second=0, microsecond=0)
