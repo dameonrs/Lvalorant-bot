@@ -8,7 +8,6 @@ from keep_alive import keep_alive
 
 TOKEN = os.getenv("DISCORD_TOKEN")
 CHANNEL_ID = 1394558478550433802
-
 intents = discord.Intents.default()
 intents.message_content = True
 bot = commands.Bot(command_prefix="!", intents=intents)
@@ -155,7 +154,7 @@ async def daily_poster():
     global latest_message, participant_data, event_start_time, reminded_users
 
     now = datetime.datetime.now(pytz.timezone("Asia/Tokyo"))
-    if now.hour == 20 and now.minute == 20:
+    if now.hour == 20 and now.minute == 26:
         participant_data.clear()
         reminded_users.clear()
         event_start_time = now.replace(hour=21, minute=0, second=0, microsecond=0)
