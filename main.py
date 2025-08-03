@@ -51,31 +51,30 @@ def get_base_participant():
         return rank_str, rank, tier
     return "未設定", None, None
 
-# --- 埋め込み更新（最終調整済） ---
+# --- 埋め込み更新（修正済） ---
 async def update_participant_embed():
     if not latest_message:
         return
 
     base_rank_str, base_rank, base_tier = get_base_participant()
 
-    normal_participants = []
-    fullparty_participants = []
+    temp_normals = []
+    temp_full = []
 
     if base_rank is not None:
-        for i, (uid, (name, rank_str, rank, tier)) in enumerate(participant_data.items()):
-            if i == 0:
-                normal_participants.append((uid, name))
-            elif i == 3:
-                fullparty_participants.append((uid, name))
-            elif i == 4:
-                normal_participants.append((uid, name))
-            elif is_valid_by_base(rank, tier, base_rank, base_tier):
-                normal_participants.append((uid, name))
+        for uid, (name, r_str, r, t) in participant_data.items():
+            if uid == next(iter(participant_data)):
+                temp_normals.append((uid, name))
+            elif is_valid_by_base(r, t, base_rank, base_tier):
+                temp_normals.append((uid, name))
             else:
-                fullparty_participants.append((uid, name))
+                temp_full.append((uid, name))
 
-        normal = [f"- {name}" for _, name in normal_participants]
-        full = [f"- {name}" for _, name in fullparty_participants]
+        while len(temp_normals) < 5 and temp_full:
+            temp_normals.append(temp_full.pop(0))
+
+        normal = [f"- {name}" for _, name in temp_normals[:5]]
+        full = [f"- {name}" for _, name in temp_normals[5:]] + [f"- {name}" for _, name in temp_full]
     else:
         base_rank_str = "未設定"
         normal = []
@@ -86,7 +85,7 @@ async def update_participant_embed():
     embed.description = (
         f"🕒 基準ランク：{base_rank_str}　フルパ：無制限\n\n"
         "**🟢 通常参加者（条件内・最大5人）**\n" + ("\n".join(normal) if normal else "（なし）") +
-        "\n\n**🔴 フルパ待機者（条件外または4人目・6人目以降）**\n" + ("\n".join(full) if full else "（なし）")
+        "\n\n**🔴 フルパ待機者（条件外または6人目以降）**\n" + ("\n".join(full) if full else "（なし）")
     )
 
     view = JoinButtonView()
@@ -167,7 +166,7 @@ async def daily_poster():
                 title="🎮 VALORANT 定期募集（21:00 開始予定）",
                 description="🕒 基準ランク：未設定　フルパ：無制限\n\n"
                             "**🟢 通常参加者（条件内・最大5人）**\n（なし）\n\n"
-                            "**🔴 フルパ待機者（条件外または4人目・6人目以降）**\n（なし）",
+                            "**🔴 フルパ待機者（条件外または6人目以降）**\n（なし）",
                 color=discord.Color.blurple(),
             )
             embed.set_footer(text="参加希望の方は下のボタンをクリックしてください")
@@ -181,17 +180,11 @@ async def reminder_task():
     now = datetime.datetime.now(pytz.timezone("Asia/Tokyo"))
     delta = (event_start_time - now).total_seconds()
     if 0 < delta <= 300:
-        base_rank_str, base_rank, base_tier = get_base_participant()
-        if base_rank is None:
-            return
-
         channel = bot.get_channel(CHANNEL_ID)
-        mentions = []
+        mentions = [f"<@{uid}>" for uid in participant_data if uid not in reminded_users]
 
-        for uid, (_, _, r, t) in participant_data.items():
-            if is_valid_by_base(r, t, base_rank, base_tier) and uid not in reminded_users:
-                mentions.append(f"<@{uid}>")
-                reminded_users.add(uid)
+        for uid in participant_data:
+            reminded_users.add(uid)
 
         if mentions and channel:
             await channel.send(f"🔔 {', '.join(mentions)} ゲーム開始まであと5分です！")
