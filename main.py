@@ -52,16 +52,22 @@ async def update_embed(message_id):
 
     temp_normals = []
     temp_full = []
+    count = 0
     for uid, (name, r_str, r, t) in participants.items():
-        if uid == next(iter(participants)):
-            temp_normals.append((uid, name))
-        elif base_rank is not None and is_valid_by_base(r, t, base_rank, base_tier):
-            temp_normals.append((uid, name))
+        count += 1
+        if count == 1:
+            temp_normals.append((uid, name))  # 基準ランク
+        elif 2 <= count <= 3 and base_rank is not None and is_valid_by_base(r, t, base_rank, base_tier):
+            temp_normals.append((uid, name))  # 条件内
+        elif count == 4:
+            temp_full.append((uid, name))  # 一時待機者（5人目が来るまで）
+        elif count == 5:
+            temp_normals.append((uid, name))  # 無条件参加
+            if len(temp_full) == 1:
+                # 4人目を待機から昇格
+                temp_normals.insert(3, temp_full.pop(0))
         else:
-            temp_full.append((uid, name))
-
-    while len(temp_normals) < 5 and temp_full:
-        temp_normals.append(temp_full.pop(0))
+            temp_full.append((uid, name))  # 6人目以降
 
     normal = [f"- {name}" for _, name in temp_normals[:5]]
     full = [f"- {name}" for _, name in temp_normals[5:]] + [f"- {name}" for _, name in temp_full]
@@ -84,121 +90,3 @@ async def update_embed(message_id):
         session["next_posted"] = True
         if len(party_sessions) < max_party_count:
             await post_party_embed()
-
-class JoinButtonView(discord.ui.View):
-    def __init__(self, message_id):
-        super().__init__(timeout=None)
-        self.message_id = message_id
-
-    @discord.ui.button(label="🎮 参加する", style=discord.ButtonStyle.primary)
-    async def join(self, interaction: discord.Interaction, button: discord.ui.Button):
-        session = party_sessions[self.message_id]
-        if session['label'] == 'パーティA' and datetime.datetime.now(pytz.timezone("Asia/Tokyo")) >= session['start_time']:
-            await interaction.response.send_message("⚠️ 開始時間を過ぎているため、参加できません。", ephemeral=True)
-            return
-
-        if interaction.user.id in session['participants']:
-            await interaction.response.send_message("✅ 既に参加済みです。", ephemeral=True)
-        else:
-            await interaction.response.send_message("🔽 ランクを選んでください：", view=RankSelectView(self.message_id), ephemeral=True)
-
-    @discord.ui.button(label="❌ 取り消す", style=discord.ButtonStyle.danger)
-    async def cancel(self, interaction: discord.Interaction, button: discord.ui.Button):
-        session = party_sessions[self.message_id]
-        if session['label'] == 'パーティA' and datetime.datetime.now(pytz.timezone("Asia/Tokyo")) >= session['start_time']:
-            await interaction.response.send_message("⚠️ 開始時間を過ぎているため、取り消しできません。", ephemeral=True)
-            return
-
-        if interaction.user.id in session['participants']:
-            del session['participants'][interaction.user.id]
-            await update_embed(self.message_id)
-            await interaction.response.send_message("❌ 取り消しました。", ephemeral=True)
-        else:
-            await interaction.response.send_message("⚠️ まだ参加していません。", ephemeral=True)
-
-class RankSelect(discord.ui.Select):
-    def __init__(self, message_id):
-        options = [discord.SelectOption(label=rank) for rank in TIER_MAP.keys()]
-        super().__init__(placeholder="ランクを選んでください", min_values=1, max_values=1, options=options)
-        self.message_id = message_id
-
-    async def callback(self, interaction: discord.Interaction):
-        await interaction.response.defer(ephemeral=True)
-        rank_str = self.values[0]
-        tier = TIER_MAP[rank_str]
-        base = rank_str.rstrip("123")
-        rank = RANK_FACTORS.get(base)
-        if rank is None:
-            await interaction.followup.send("⚠️ ランク解析に失敗しました。", ephemeral=True)
-            return
-
-        session = party_sessions[self.message_id]
-        session['participants'][interaction.user.id] = (interaction.user.display_name, rank_str, rank, tier)
-        await update_embed(self.message_id)
-        await interaction.followup.send(f"✅ ランク「**{rank_str}**」を登録しました！", ephemeral=True)
-
-class RankSelectView(discord.ui.View):
-    def __init__(self, message_id):
-        super().__init__(timeout=None)
-        self.add_item(RankSelect(message_id))
-
-async def post_party_embed():
-    global latest_party_index
-    latest_party_index += 1
-    label = party_labels[latest_party_index]
-    now = datetime.datetime.now(pytz.timezone("Asia/Tokyo"))
-    start_time = now.replace(hour=21, minute=0, second=0, microsecond=0) if label == 'パーティA' else None
-
-    channel = bot.get_channel(CHANNEL_ID)
-    embed = discord.Embed(
-        title=f"🎮 VALORANT {label}",
-        description="🕒 基準ランク：未設定　フルパ：無制限\n\n**🟢 通常参加者（条件内・最大5人）**\n（なし）\n\n**🔴 フルパ待機者（条件外または6人目以降）**\n（なし）",
-        color=discord.Color.blurple(),
-    )
-    embed.set_footer(text="参加希望の方は下のボタンをクリックしてください")
-    message = await channel.send(content='@everyone', embed=embed, view=JoinButtonView(None))
-    party_sessions[message.id] = {
-        "label": label,
-        "participants": OrderedDict(),
-        "start_time": start_time,
-        "reminded": set(),
-        "next_posted": False
-    }
-    await update_embed(message.id)
-
-@tasks.loop(minutes=1)
-async def daily_poster():
-    now = datetime.datetime.now(pytz.timezone("Asia/Tokyo"))
-    if now.hour == 18 and now.minute == 45:
-        party_sessions.clear()
-        global latest_party_index
-        latest_party_index = -1
-        await post_party_embed()
-
-@tasks.loop(minutes=1)
-async def reminder_task():
-    now = datetime.datetime.now(pytz.timezone("Asia/Tokyo"))
-    for session in party_sessions.values():
-        if session['label'] != 'パーティA':
-            continue
-        if session['start_time'] is None:
-            continue
-        delta = (session['start_time'] - now).total_seconds()
-        if 0 < delta <= 300:
-            channel = bot.get_channel(CHANNEL_ID)
-            mentions = [f"<@{uid}>" for uid in session['participants'] if uid not in session['reminded']]
-            for uid in session['participants']:
-                session['reminded'].add(uid)
-            if mentions:
-                await channel.send(f"🔔 {', '.join(mentions)} ゲーム開始まであと5分です！")
-
-@bot.event
-async def on_ready():
-    print(f"✅ Bot is online: {bot.user}")
-    if not daily_poster.is_running():
-        daily_poster.start()
-    if not reminder_task.is_running():
-        reminder_task.start()
-
-keep_alive()
-bot.run(TOKEN)
