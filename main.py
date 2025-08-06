@@ -1,9 +1,3 @@
-
-現状のコードと見比べて以下の点を確認して
-①不要（該当部分以外の）な変更追加削除を行っていないか
-②ロジックが破綻していないか
-③最後までコードを書ききっているか
-
 import discord
 from discord.ext import commands, tasks
 import datetime
@@ -64,40 +58,48 @@ async def update_participant_embed():
 
     base_rank_str, base_rank, base_tier = get_base_participant()
 
-    temp_normals = []
-    temp_full = []
+    normal = []
+    full = []
+    entries = list(participant_data.items())
 
-    if base_rank is not None:
-        for uid, (name, r_str, r, t) in participant_data.items():
-            if uid == next(iter(participant_data)):
-                temp_normals.append((uid, name))
-            elif is_valid_by_base(r, t, base_rank, base_tier):
-                temp_normals.append((uid, name))
-            else:
-                temp_full.append((uid, name))
-
-        while len(temp_normals) < 5 and temp_full:
-            temp_normals.append(temp_full.pop(0))
-
-        normal = [f"- {name}" for _, name in temp_normals[:5]]
-        full = [f"- {name}" for _, name in temp_normals[5:]] + [f"- {name}" for _, name in temp_full]
+    if len(entries) >= 5:
+        # フルパ：全員無条件で通常参加
+        for _, (name, _, _, _) in entries:
+            normal.append(f"- {name}")
+        base_rank_str = "制限解除（フルパ）"
     else:
-        base_rank_str = "未設定"
-        normal = []
-        full = []
+        temp_normals = []
+        temp_full = []
+
+        if base_rank is not None:
+            for idx, (uid, (name, r_str, r, t)) in enumerate(entries):
+                if uid == entries[0][0]:  # 基準者
+                    temp_normals.append((uid, name))
+                elif is_valid_by_base(r, t, base_rank, base_tier):
+                    temp_normals.append((uid, name))
+                else:
+                    temp_full.append((uid, name))
+
+            # 通常参加は最大3人（4人目は必ず待機）
+            normal = [f"- {name}" for _, name in temp_normals[:3]]
+            full = [f"- {name}" for _, name in temp_normals[3:]] + [f"- {name}" for _, name in temp_full]
+        else:
+            base_rank_str = "未設定"
+            normal = []
+            full = [f"- {name}" for _, (name, _, _, _) in entries[1:]]
 
     embed = latest_message.embeds[0]
     embed.title = "🎮 VALORANT 定期募集（21:00 開始予定）"
     embed.description = (
         f"🕒 基準ランク：{base_rank_str}　フルパ：無制限\n\n"
-        "**🟢 通常参加者（条件内・最大5人）**\n" + ("\n".join(normal) if normal else "（なし）") +
-        "\n\n**🔴 フルパ待機者（条件外または6人目以降）**\n" + ("\n".join(full) if full else "（なし）")
+        "**🟢 通常参加者（条件内・最大3人 or フルパ）**\n" + ("\n".join(normal) if normal else "（なし）") +
+        "\n\n**🔴 フルパ待機者（条件外または4人目）**\n" + ("\n".join(full) if full else "（なし）")
     )
 
     view = JoinButtonView()
     await latest_message.edit(embed=embed, view=view)
 
-# --- ボタンビュー（継続） ---
+# --- ボタンビュー ---
 class JoinButtonView(discord.ui.View):
     def __init__(self):
         super().__init__(timeout=None)
@@ -155,7 +157,7 @@ class RankSelectView(discord.ui.View):
         super().__init__(timeout=None)
         self.add_item(RankSelect())
 
-# --- 定期投稿と通知処理・起動 ---
+# --- 定期投稿と通知処理 ---
 @tasks.loop(minutes=1)
 async def daily_poster():
     global latest_message, participant_data, event_start_time, reminded_users
@@ -171,8 +173,8 @@ async def daily_poster():
             embed = discord.Embed(
                 title="🎮 VALORANT 定期募集（21:00 開始予定）",
                 description="🕒 基準ランク：未設定　フルパ：無制限\n\n"
-                            "**🟢 通常参加者（条件内・最大5人）**\n（なし）\n\n"
-                            "**🔴 フルパ待機者（条件外または6人目以降）**\n（なし）",
+                            "**🟢 通常参加者（条件内・最大3人）**\n（なし）\n\n"
+                            "**🔴 フルパ待機者（条件外または4人目）**\n（なし）",
                 color=discord.Color.blurple(),
             )
             embed.set_footer(text="参加希望の方は下のボタンをクリックしてください")
