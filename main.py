@@ -197,7 +197,7 @@ async def reminder_task():
             for uid in session['participants']:
                 session['reminded'].add(uid)
             if mentions:
-                await channel.send(f"🔔 {', '.join(mentions)} ゲーム開始まであと5分です！"))
+                await channel.send(f"🔔 {', '.join(mentions)} ゲーム開始まであと5分です！")
             
 
 @bot.event
