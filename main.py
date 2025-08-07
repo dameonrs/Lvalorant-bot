@@ -28,7 +28,7 @@ TIER_MAP = {
 }
 TIER_MAP["レディアント"] = 34
 
-party_sessions = OrderedDict()  # message_id: {label, participants, start_time, reminded, next_posted}
+party_sessions = OrderedDict()
 party_labels = ['パーティA', 'パーティB', 'パーティC']
 max_party_count = 3
 latest_party_index = -1
@@ -46,7 +46,7 @@ def get_base_participant(participants):
         return rank_str, rank, tier
     return "未設定", None, None
 
-async def update_embed(message_id):
+async def update_embed(message_id, viewer_id=None):
     session = party_sessions[message_id]
     participants = session["participants"]
     base_rank_str, base_rank, base_tier = get_base_participant(participants)
@@ -55,17 +55,22 @@ async def update_embed(message_id):
     temp_full = []
     for uid, (name, r_str, r, t) in participants.items():
         if uid == next(iter(participants)):
-            temp_normals.append((uid, name))
+            temp_normals.append((uid, name, r_str))
         elif base_rank is not None and is_valid_by_base(r, t, base_rank, base_tier):
-            temp_normals.append((uid, name))
+            temp_normals.append((uid, name, r_str))
         else:
-            temp_full.append((uid, name))
+            temp_full.append((uid, name, r_str))
 
     while len(temp_normals) < 5 and temp_full:
         temp_normals.append(temp_full.pop(0))
 
-    normal = [f"- {name}" for _, name in temp_normals[:5]]
-    full = [f"- {name}" for _, name in temp_normals[5:]] + [f"- {name}" for _, name in temp_full]
+    def format_name(uid, name, r_str):
+        label = f"{name}（あなた）" if uid == viewer_id else name
+        return f"- {label} ({r_str})"
+
+    normal = [format_name(uid, name, r_str) for uid, name, r_str in temp_normals[:5]]
+    full = [format_name(uid, name, r_str) for uid, name, r_str in temp_normals[5:]] + \
+           [format_name(uid, name, r_str) for uid, name, r_str in temp_full]
 
     channel = bot.get_channel(CHANNEL_ID)
     message = await channel.fetch_message(message_id)
@@ -112,7 +117,7 @@ class JoinButtonView(discord.ui.View):
 
         if interaction.user.id in session['participants']:
             del session['participants'][interaction.user.id]
-            await update_embed(self.message_id)
+            await update_embed(self.message_id, interaction.user.id)
             await interaction.response.send_message("❌ 取り消しました。", ephemeral=True)
         else:
             await interaction.response.send_message("⚠️ まだ参加していません。", ephemeral=True)
@@ -135,7 +140,7 @@ class RankSelect(discord.ui.Select):
 
         session = party_sessions[self.message_id]
         session['participants'][interaction.user.id] = (interaction.user.display_name, rank_str, rank, tier)
-        await update_embed(self.message_id)
+        await update_embed(self.message_id, interaction.user.id)
         await interaction.followup.send(f"✅ ランク「**{rank_str}**」を登録しました！", ephemeral=True)
 
 class RankSelectView(discord.ui.View):
@@ -168,16 +173,16 @@ async def post_party_embed():
     await update_embed(message.id)
 
 @tasks.loop(minutes=1)
-async def daily_poster():
+def daily_poster():
     now = datetime.datetime.now(pytz.timezone("Asia/Tokyo"))
     if now.hour == 18 and now.minute == 45:
         party_sessions.clear()
         global latest_party_index
         latest_party_index = -1
-        await post_party_embed()
+        bot.loop.create_task(post_party_embed())
 
 @tasks.loop(minutes=1)
-async def reminder_task():
+def reminder_task():
     now = datetime.datetime.now(pytz.timezone("Asia/Tokyo"))
     for session in party_sessions.values():
         if session['label'] != 'パーティA':
@@ -191,7 +196,7 @@ async def reminder_task():
             for uid in session['participants']:
                 session['reminded'].add(uid)
             if mentions:
-                await channel.send(f"🔔 {', '.join(mentions)} ゲーム開始まであと5分です！")
+                bot.loop.create_task(channel.send(f"🔔 {', '.join(mentions)} ゲーム開始まであと5分です！"))
 
 @bot.event
 async def on_ready():
