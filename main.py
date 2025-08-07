@@ -173,16 +173,17 @@ async def post_party_embed():
     await update_embed(message.id)
 
 @tasks.loop(minutes=1)
-def daily_poster():
+async def daily_poster():
     now = datetime.datetime.now(pytz.timezone("Asia/Tokyo"))
     if now.hour == 18 and now.minute == 45:
         party_sessions.clear()
         global latest_party_index
         latest_party_index = -1
-        bot.loop.create_task(post_party_embed())
+        await post_party_embed()
+
 
 @tasks.loop(minutes=1)
-def reminder_task():
+async def reminder_task():
     now = datetime.datetime.now(pytz.timezone("Asia/Tokyo"))
     for session in party_sessions.values():
         if session['label'] != 'パーティA':
@@ -196,7 +197,8 @@ def reminder_task():
             for uid in session['participants']:
                 session['reminded'].add(uid)
             if mentions:
-                bot.loop.create_task(channel.send(f"🔔 {', '.join(mentions)} ゲーム開始まであと5分です！"))
+                await channel.send(f"🔔 {', '.join(mentions)} ゲーム開始まであと5分です！"))
+            
 
 @bot.event
 async def on_ready():
