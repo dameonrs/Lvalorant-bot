@@ -64,13 +64,19 @@ async def update_embed(message_id, viewer_id=None):
     while len(temp_normals) < 5 and temp_full:
         temp_normals.append(temp_full.pop(0))
 
-    def format_name(uid, name, r_str):
-        label = f"{name}（あなた）" if uid == viewer_id else name
+    # ▼ 修正版：自分だけ名前表示、それ以外は「参加者N」
+    def format_name(uid, index, name, r_str):
+        label = f"{name}（あなた）" if uid == viewer_id else f"参加者{index + 1}"
         return f"- {label} ({r_str})"
 
-    normal = [format_name(uid, name, r_str) for uid, name, r_str in temp_normals[:5]]
-    full = [format_name(uid, name, r_str) for uid, name, r_str in temp_normals[5:]] + \
-           [format_name(uid, name, r_str) for uid, name, r_str in temp_full]
+    normal = [
+        format_name(uid, i, name, r_str)
+        for i, (uid, name, r_str) in enumerate(temp_normals[:5])
+    ]
+    full = [
+        format_name(uid, i + len(normal), name, r_str)
+        for i, (uid, name, r_str) in enumerate(temp_normals[5:] + temp_full)
+    ]
 
     channel = bot.get_channel(CHANNEL_ID)
     message = await channel.fetch_message(message_id)
