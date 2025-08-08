@@ -86,10 +86,11 @@ async def update_embed(message_id, viewer_id=None):
     ended = len(participants) >= 5 and is_first_party
     embed.title = f"🎮 VALORANT {session['label']}{' 🔒 募集終了' if ended else ''}"
     embed.description = (
-        f"🕒 基準ランク：{base_rank_str}　フルパ：無制限\n\n"
-        f"**🟢 通常参加者（条件内・最大5人）**\n" + ("\n".join(normal) if normal else "（なし）") +
-        "\n\n**🔴 フルパ待機者（条件外または6人目以降）**\n" + ("\n".join(full) if full else "（なし）")
-    )
+    f"🕒 基準ランク：{base_rank_str}" +
+    ("　開始時刻：21:00" if is_first_party else "") +
+    "　フルパ：無制限\n\n"
+    f"**🟢 通常参加者（条件内・最大5人）**\n" + ("\n".join(normal) if normal else "（なし）") +
+    "\n\n**🔴 フルパ待機者（条件外または6人目以降）**\n" + ("\n".join(full) if full else "（なし）")
     await message.edit(embed=embed, view=JoinButtonView(message_id))
 
     if ended and not session.get("next_posted"):
@@ -162,11 +163,15 @@ async def post_party_embed():
     start_time = now.replace(hour=21, minute=0, second=0, microsecond=0) if label == 'パーティA' else None
 
     channel = bot.get_channel(CHANNEL_ID)
-    embed = discord.Embed(
-        title=f"🎮 VALORANT {label}",
-        description="🕒 基準ランク：未設定　フルパ：無制限\n\n**🟢 通常参加者（条件内・最大5人）**\n（なし）\n\n**🔴 フルパ待機者（条件外または6人目以降）**\n（なし）",
-        color=discord.Color.blurple(),
-    )
+embed = discord.Embed(
+    title=f"🎮 VALORANT {label}",
+    description=(
+        "🕒 基準ランク：未設定　時間設定：アナウンスしてください　フルパ：無制限\n\n"
+        "**🟢 通常参加者（条件内・最大5人）**\n（なし）\n\n"
+        "**🔴 フルパ待機者（条件外または6人目以降）**\n（なし）"
+    ),
+    color=discord.Color.blurple(),
+)
     embed.set_footer(text="参加希望の方は下のボタンをクリックしてください")
     message = await channel.send(content='@everyone', embed=embed, view=JoinButtonView(None))
     party_sessions[message.id] = {
