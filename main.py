@@ -7,8 +7,11 @@ from collections import OrderedDict
 from keep_alive import keep_alive
 
 # --- デバッグユーティリティ ---
+DEBUG = os.getenv("DEBUG_LOG") == "1"
 def debug_log(*args):
-    print("[DEBUG]", *args)
+    if DEBUG:
+        print("[DEBUG]", *args, flush=True)
+dlog = debug_log  # 呼び出し側の短縮名
 
 TOKEN = os.getenv("DISCORD_TOKEN")
 CHANNEL_ID = 1394558478550433802
@@ -16,6 +19,7 @@ CHANNEL_ID = 1394558478550433802
 intents = discord.Intents.default()
 intents.message_content = True
 bot = commands.Bot(command_prefix="!", intents=intents)
+
 # --- ランク定義 ---
 RANK_FACTORS = {
     "アイアン": 0, "ブロンズ": 1, "シルバー": 2, "ゴールド": 3,
@@ -31,7 +35,8 @@ TIER_MAP = {
 }
 TIER_MAP["レディアント"] = 34
 
-party_sessions = OrderedDict()
+# --- 状態 ---
+party_sessions = OrderedDict()  # message_id -> {label, participants, start_time, reminded, next_posted}
 party_labels = ['パーティA', 'パーティB', 'パーティC']
 max_party_count = 3
 latest_party_index = -1
@@ -54,7 +59,6 @@ async def update_embed(message_id, viewer_id=None):
     participants = session["participants"]
     base_rank_str, base_rank, base_tier = get_base_participant(participants)
 
-    # ▼ 追加: 呼び出しと参加者順のトレース
     dlog(f"update_embed called: message_id={message_id}, viewer_id={viewer_id}")
     dlog(f"participants order: {list(participants.keys())}")
 
@@ -71,10 +75,9 @@ async def update_embed(message_id, viewer_id=None):
     while len(temp_normals) < 5 and temp_full:
         temp_normals.append(temp_full.pop(0))
 
-    # ▼ 追加: 振り分け結果のトレース
     dlog("temp_normals:", [(u, n) for u, n, _ in temp_normals], "temp_full:", [(u, n) for u, n, _ in temp_full])
 
-    # ▼ 修正版：自分だけ名前表示、それ以外は「参加者N」
+    # 自分だけ display_name（あなた）、他は 参加者N
     def format_name(uid, index, name, r_str, viewer_id):
         is_you = (uid == viewer_id)
         dlog(f"format_name: uid={uid}, name={name}, idx={index}, rank={r_str}, viewer_id={viewer_id}, is_you={is_you}")
@@ -96,16 +99,21 @@ async def update_embed(message_id, viewer_id=None):
 
     is_first_party = session['label'] == 'パーティA'
     ended = len(participants) >= 5 and is_first_party
+
     embed.title = f"🎮 VALORANT {session['label']}{' 🔒 募集終了' if ended else ''}"
     embed.description = (
-        f"🕒 基準ランク：{base_rank_str}　フルパ：無制限\n\n"
-        f"**🟢 通常参加者（条件内・最大5人）**\n" + ("\n".join(normal) if normal else "（なし）") +
-        "\n\n**🔴 フルパ待機者（条件外または6人目以降）**\n" + ("\n".join(full) if full else "（なし）")
+        f"🕒 基準ランク：{base_rank_str}"
+        + ("　開始時刻：21:00" if is_first_party else "")
+        + "　フルパ：無制限\n\n"
+        + ("**🟢 通常参加者（条件内・最大5人）**\n" + ("\n".join(normal) if normal else "（なし）"))
+        + "\n\n**🔴 フルパ待機者（条件外または6人目以降）**\n"
+        + (("\n".join(full)) if full else "（なし）")
     )
+
     await message.edit(embed=embed, view=JoinButtonView(message_id))
 
     if ended and not session.get("next_posted"):
-        dlog("first party reached 5; next party posting trigger")  # ← 追加
+        dlog("first party reached 5; next party posting trigger")
         session["next_posted"] = True
         if len(party_sessions) < max_party_count:
             await post_party_embed()
@@ -175,17 +183,20 @@ async def post_party_embed():
     start_time = now.replace(hour=21, minute=0, second=0, microsecond=0) if label == 'パーティA' else None
 
     channel = bot.get_channel(CHANNEL_ID)
-embed = discord.Embed(
-    title=f"🎮 VALORANT {label}",
-    description=(
-        "🕒 基準ランク：未設定　時間設定：アナウンスしてください　フルパ：無制限\n\n"
-        "**🟢 通常参加者（条件内・最大5人）**\n（なし）\n\n"
-        "**🔴 フルパ待機者（条件外または6人目以降）**\n（なし）"
-    ),
-    color=discord.Color.blurple(),
-)
+    embed = discord.Embed(
+        title=f"🎮 VALORANT {label}",
+        description=(
+            "🕒 基準ランク：未設定　時間設定：アナウンスしてください　フルパ：無制限\n\n"
+            "**🟢 通常参加者（条件内・最大5人）**\n（なし）\n\n"
+            "**🔴 フルパ待機者（条件外または6人目以降）**\n（なし）"
+        ),
+        color=discord.Color.blurple(),
+    )
     embed.set_footer(text="参加希望の方は下のボタンをクリックしてください")
+
+    # 最初は message_id を渡せないので None で出す → 直後に update_embed で差し替え
     message = await channel.send(content='@everyone', embed=embed, view=JoinButtonView(None))
+
     party_sessions[message.id] = {
         "label": label,
         "participants": OrderedDict(),
@@ -204,7 +215,6 @@ async def daily_poster():
         latest_party_index = -1
         await post_party_embed()
 
-
 @tasks.loop(minutes=1)
 async def reminder_task():
     now = datetime.datetime.now(pytz.timezone("Asia/Tokyo"))
@@ -221,7 +231,6 @@ async def reminder_task():
                 session['reminded'].add(uid)
             if mentions:
                 await channel.send(f"🔔 {', '.join(mentions)} ゲーム開始まであと5分です！")
-            
 
 @bot.event
 async def on_ready():
