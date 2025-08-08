@@ -198,7 +198,7 @@ embed = discord.Embed(
 @tasks.loop(minutes=1)
 async def daily_poster():
     now = datetime.datetime.now(pytz.timezone("Asia/Tokyo"))
-    if now.hour == 19 and now.minute == 45:
+    if now.hour == 18 and now.minute == 45:
         party_sessions.clear()
         global latest_party_index
         latest_party_index = -1
