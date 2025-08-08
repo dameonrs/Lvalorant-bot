@@ -6,13 +6,16 @@ import os
 from collections import OrderedDict
 from keep_alive import keep_alive
 
+# --- デバッグユーティリティ ---
+def debug_log(*args):
+    print("[DEBUG]", *args)
+
 TOKEN = os.getenv("DISCORD_TOKEN")
 CHANNEL_ID = 1394558478550433802
 
 intents = discord.Intents.default()
 intents.message_content = True
 bot = commands.Bot(command_prefix="!", intents=intents)
-
 # --- ランク定義 ---
 RANK_FACTORS = {
     "アイアン": 0, "ブロンズ": 1, "シルバー": 2, "ゴールド": 3,
@@ -51,6 +54,10 @@ async def update_embed(message_id, viewer_id=None):
     participants = session["participants"]
     base_rank_str, base_rank, base_tier = get_base_participant(participants)
 
+    # ▼ 追加: 呼び出しと参加者順のトレース
+    dlog(f"update_embed called: message_id={message_id}, viewer_id={viewer_id}")
+    dlog(f"participants order: {list(participants.keys())}")
+
     temp_normals = []
     temp_full = []
     for uid, (name, r_str, r, t) in participants.items():
@@ -64,17 +71,22 @@ async def update_embed(message_id, viewer_id=None):
     while len(temp_normals) < 5 and temp_full:
         temp_normals.append(temp_full.pop(0))
 
+    # ▼ 追加: 振り分け結果のトレース
+    dlog("temp_normals:", [(u, n) for u, n, _ in temp_normals], "temp_full:", [(u, n) for u, n, _ in temp_full])
+
     # ▼ 修正版：自分だけ名前表示、それ以外は「参加者N」
-    def format_name(uid, index, name, r_str):
-        label = f"{name}（あなた）" if uid == viewer_id else f"参加者{index + 1}"
+    def format_name(uid, index, name, r_str, viewer_id):
+        is_you = (uid == viewer_id)
+        dlog(f"format_name: uid={uid}, name={name}, idx={index}, rank={r_str}, viewer_id={viewer_id}, is_you={is_you}")
+        label = f"{name}（あなた）" if is_you else f"参加者{index + 1}"
         return f"- {label} ({r_str})"
 
     normal = [
-        format_name(uid, i, name, r_str)
+        format_name(uid, i, name, r_str, viewer_id)
         for i, (uid, name, r_str) in enumerate(temp_normals[:5])
     ]
     full = [
-        format_name(uid, i + len(normal), name, r_str)
+        format_name(uid, i + len(normal), name, r_str, viewer_id)
         for i, (uid, name, r_str) in enumerate(temp_normals[5:] + temp_full)
     ]
 
@@ -86,14 +98,14 @@ async def update_embed(message_id, viewer_id=None):
     ended = len(participants) >= 5 and is_first_party
     embed.title = f"🎮 VALORANT {session['label']}{' 🔒 募集終了' if ended else ''}"
     embed.description = (
-    f"🕒 基準ランク：{base_rank_str}" +
-    ("　開始時刻：21:00" if is_first_party else "") +
-    "　フルパ：無制限\n\n"
-    f"**🟢 通常参加者（条件内・最大5人）**\n" + ("\n".join(normal) if normal else "（なし）") +
-    "\n\n**🔴 フルパ待機者（条件外または6人目以降）**\n" + ("\n".join(full) if full else "（なし）")
+        f"🕒 基準ランク：{base_rank_str}　フルパ：無制限\n\n"
+        f"**🟢 通常参加者（条件内・最大5人）**\n" + ("\n".join(normal) if normal else "（なし）") +
+        "\n\n**🔴 フルパ待機者（条件外または6人目以降）**\n" + ("\n".join(full) if full else "（なし）")
+    )
     await message.edit(embed=embed, view=JoinButtonView(message_id))
 
     if ended and not session.get("next_posted"):
+        dlog("first party reached 5; next party posting trigger")  # ← 追加
         session["next_posted"] = True
         if len(party_sessions) < max_party_count:
             await post_party_embed()
