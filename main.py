@@ -86,23 +86,24 @@ async def update_embed(message_id, viewer_id=None):
     while len(temp_normals) < 5 and temp_full:
         temp_normals.append(temp_full.pop(0))
 
-    dlog("temp_normals:", [(u, n) for u, n, _ in temp_normals], "temp_full:", [(u, n) for u, n, _ in temp_full])
+     dlog("temp_normals:", [(u, n) for u, n, _ in temp_normals],
+         "temp_full:", [(u, n) for u, n, _ in temp_full])
 
-
-   # 全員匿名（参加者N）表示にする
-  def format_name(uid, index, name, r_str, viewer_id):
-      dlog(f"format_name: uid={uid}, name={name}, idx={index}, rank={r_str}, viewer_id={viewer_id}")
-       label = f"参加者{index + 1}"
-       return f"- {label} ({r_str})"
+    # 全員匿名（参加者N）表示にする
+    def format_name(uid, index, name, r_str, viewer_id):
+        dlog(f"format_name: uid={uid}, name={name}, idx={index}, rank={r_str}, viewer_id={viewer_id}")
+        label = f"参加者{index + 1}"
+        return f"- {label} ({r_str})"
 
     normal = [
-       format_name(uid, i, name, r_str, viewer_id)
+        format_name(uid, i, name, r_str, viewer_id)
         for i, (uid, name, r_str) in enumerate(temp_normals[:5])
     ]
     full = [
         format_name(uid, i + len(normal), name, r_str, viewer_id)
-       for i, (uid, name, r_str) in enumerate(temp_normals[5:] + temp_full)
-   ]
+        for i, (uid, name, r_str) in enumerate(temp_normals[5:] + temp_full)
+    ]
+
     channel = bot.get_channel(CHANNEL_ID)
     message = await channel.fetch_message(message_id)
     embed = message.embeds[0]
