@@ -86,7 +86,7 @@ async def update_embed(message_id, viewer_id=None):
     while len(temp_normals) < 5 and temp_full:
         temp_normals.append(temp_full.pop(0))
 
-     dlog("temp_normals:", [(u, n) for u, n, _ in temp_normals],
+    dlog("temp_normals:", [(u, n) for u, n, _ in temp_normals],
          "temp_full:", [(u, n) for u, n, _ in temp_full])
 
     # 全員匿名（参加者N）表示にする
