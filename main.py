@@ -27,13 +27,18 @@ RANK_FACTORS = {
     "イモータル": 7, "レディアント": 8
 }
 
+# --- ティア定義（各ティアを明示：直列 10..34） ---
 TIER_MAP = {
-    f"{rank}{tier}": 10 + i for i, (rank, tiers) in enumerate([
-        ("アイアン", 3), ("ブロンズ", 3), ("シルバー", 3), ("ゴールド", 3),
-        ("プラチナ", 3), ("ダイヤモンド", 3), ("アセンダント", 3), ("イモータル", 3)
-    ]) for tier in range(1, tiers + 1)
+    "アイアン1": 10, "アイアン2": 11, "アイアン3": 12,
+    "ブロンズ1": 13, "ブロンズ2": 14, "ブロンズ3": 15,
+    "シルバー1": 16, "シルバー2": 17, "シルバー3": 18,
+    "ゴールド1": 19, "ゴールド2": 20, "ゴールド3": 21,
+    "プラチナ1": 22, "プラチナ2": 23, "プラチナ3": 24,
+    "ダイヤモンド1": 25, "ダイヤモンド2": 26, "ダイヤモンド3": 27,
+    "アセンダント1": 28, "アセンダント2": 29, "アセンダント3": 30,
+    "イモータル1": 31, "イモータル2": 32, "イモータル3": 33,
+    "レディアント": 34
 }
-TIER_MAP["レディアント"] = 34
 
 # --- 状態 ---
 party_sessions = OrderedDict()  # message_id -> {label, participants, start_time, reminded, next_posted}
@@ -42,12 +47,18 @@ max_party_count = 3
 latest_party_index = -1
 
 def is_valid_by_base(new_rank, new_tier, base_rank, base_tier):
-    if new_tier >= 25 or base_tier >= 25:
-        if abs(new_tier - base_tier) > 6:
-            return False
-        return base_tier - 3 <= new_tier <= base_tier + 3
-    else:
+    """
+    マッチング仕様：
+      ① プラチナ以下同士 → 前後1ランク（ティア無視）
+      ② 片方でもダイヤ以上 → 直列ティア差 ±3（TIER_MAP 値で比較）
+    ※ フルパは別処理で常に無制限
+    """
+    PLAT = RANK_FACTORS["プラチナ"]
+    if new_rank is None or base_rank is None or new_tier is None or base_tier is None:
+        return False
+    if new_rank <= PLAT and base_rank <= PLAT:
         return abs(new_rank - base_rank) <= 1
+    return abs(int(new_tier) - int(base_tier)) <= 3
 
 def get_base_participant(participants):
     for _, (_, rank_str, rank, tier) in participants.items():
