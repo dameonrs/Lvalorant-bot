@@ -113,13 +113,12 @@ async def update_embed(message_id, viewer_id=None):
 
     embed.title = f"🎮 VALORANT {session['label']}{' 🔒 募集終了' if ended else ''}"
     embed.description = (
-        f"🕒 基準ランク：{base_rank_str}"
-        + ("　開始時刻：21:00" if is_first_party else "")
-        + "　フルパ：無制限\n\n"
-        + ("**🟢 通常参加者（条件内・最大5人）**\n" + ("\n".join(normal) if normal else "（なし）"))
-        + "\n\n**🔴 フルパ待機者（条件外または6人目以降）**\n"
-        + (("\n".join(full)) if full else "（なし）")
-    )
+    (f"🕒 開始時刻：21:00\n" if is_first_party else "")
+    + f"基準ランク：{base_rank_str}　フルパ：無制限\n\n"
+    + ("**🟢 通常参加者（条件内・最大5人）**\n" + ("\n".join(normal) if normal else "（なし）"))
+    + "\n\n**🔴 フルパ待機者（条件外または6人目以降）**\n"
+    + (("\n".join(full)) if full else "（なし）")
+)
 
     await message.edit(embed=embed, view=JoinButtonView(message_id))
 
