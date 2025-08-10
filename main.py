@@ -102,7 +102,7 @@ async def update_embed(message_id, viewer_id=None):
         label = f"参加者{index + 1}"
         if viewer_id is not None and uid == viewer_id:
             label += " (あなた)"
-        return f"- {label} ({r_str})"
+        return f"- {label}"
 
     # 通常参加者（最大5人）
     normal = [
