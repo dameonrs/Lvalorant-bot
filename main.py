@@ -75,52 +75,61 @@ async def update_embed(message_id, viewer_id=None):
 
     temp_normals = []
     temp_full = []
-    for uid, (name, r_str, r, t) in participants.items():
-        if uid == next(iter(participants)):
-            temp_normals.append((uid, name, r_str))
-        elif base_rank is not None and is_valid_by_base(r, t, base_rank, base_tier):
-            temp_normals.append((uid, name, r_str))
-        else:
-            temp_full.append((uid, name, r_str))
 
-    while len(temp_normals) < 5 and temp_full:
-        temp_normals.append(temp_full.pop(0))
+    ordered = list(participants.items())  # [(uid, (name, r_str, r, t)), ...]
+    count = len(ordered)
+
+    if count >= 5:
+        # --- 変更①: フルパ時はランク無制限、先頭5名が通常参加 ---
+        for i, (uid, (name, r_str, r, t)) in enumerate(ordered):
+            (temp_normals if i < 5 else temp_full).append((uid, name, r_str))
+    else:
+        # --- 変更②: 4人目(インデックス3)は必ず待機 ---
+        for i, (uid, (name, r_str, r, t)) in enumerate(ordered):
+            if i == 3:
+                temp_full.append((uid, name, r_str))
+                continue
+            if i == 0 or (base_rank is not None and is_valid_by_base(r, t, base_rank, base_tier)):
+                temp_normals.append((uid, name, r_str))
+            else:
+                temp_full.append((uid, name, r_str))
 
     dlog("temp_normals:", [(u, n) for u, n, _ in temp_normals],
          "temp_full:", [(u, n) for u, n, _ in temp_full])
 
-    # 全員匿名（参加者N）表示にする
-def format_name(uid, index, name, r_str, viewer_id):
-    label = f"参加者{index + 1}"
-    if viewer_id is not None and uid == viewer_id:
-        label += " (あなた)"
-    return f"- {label} ({r_str})"
+    # --- (あなた) 表示を含む名前フォーマット関数 ---
+    def format_name(uid, index, name, r_str, viewer_id):
+        label = f"参加者{index + 1}"
+        if viewer_id is not None and uid == viewer_id:
+            label += " (あなた)"
+        return f"- {label} ({r_str})"
 
-# ← ここからは関数“の外”
-normal = [
-    format_name(uid, i, name, r_str, viewer_id)
-    for i, (uid, name, r_str) in enumerate(temp_normals[:5])
-]
-full = [
-    format_name(uid, i + len(normal), name, r_str, viewer_id)
-    for i, (uid, name, r_str) in enumerate(temp_normals[5:] + temp_full)
-]
+    # 通常参加者（最大5人）
+    normal = [
+        format_name(uid, i, name, r_str, viewer_id)
+        for i, (uid, name, r_str) in enumerate(temp_normals[:5])
+    ]
+    # 待機者（通常6人目以降 or 条件外）
+    full = [
+        format_name(uid, i + len(normal), name, r_str, viewer_id)
+        for i, (uid, name, r_str) in enumerate(temp_full)
+    ]
 
-channel = bot.get_channel(CHANNEL_ID)
-message = await channel.fetch_message(message_id)
-embed = message.embeds[0]
+    channel = bot.get_channel(CHANNEL_ID)
+    message = await channel.fetch_message(message_id)
+    embed = message.embeds[0]
 
     is_first_party = session['label'] == 'パーティA'
     ended = len(participants) >= 5 and is_first_party
 
     embed.title = f"🎮 VALORANT {session['label']}{' 🔒 募集終了' if ended else ''}"
     embed.description = (
-    (f"🕒 開始時刻：21:00\n" if is_first_party else "")
-    + f"基準ランク：{base_rank_str}　フルパ：無制限\n\n"
-    + ("**🟢 通常参加者（条件内・最大5人）**\n" + ("\n".join(normal) if normal else "（なし）"))
-    + "\n\n**🔴 フルパ待機者（条件外または6人目以降）**\n"
-    + (("\n".join(full)) if full else "（なし）")
-)
+        (f"🕒 開始時刻：21:00\n" if is_first_party else "")
+        + f"基準ランク：{base_rank_str}　フルパ：無制限\n\n"
+        + ("**🟢 通常参加者（条件内・最大5人）**\n" + ("\n".join(normal) if normal else "（なし）"))
+        + "\n\n**🔴 フルパ待機者（条件外または6人目以降）**\n"
+        + (("\n".join(full)) if full else "（なし）")
+    )
 
     await message.edit(embed=embed, view=JoinButtonView(message_id))
 
@@ -129,7 +138,6 @@ embed = message.embeds[0]
         session["next_posted"] = True
         if len(party_sessions) < max_party_count:
             await post_party_embed()
-
 class JoinButtonView(discord.ui.View):
     def __init__(self, message_id):
         super().__init__(timeout=None)
