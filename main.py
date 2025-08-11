@@ -97,9 +97,10 @@ async def update_embed(message_id, viewer_id=None):
     dlog("temp_normals:", [(u, n) for u, n, _ in temp_normals],
          "temp_full:", [(u, n) for u, n, _ in temp_full])
 
-    # --- (あなた) 表示を含む名前フォーマット関数 ---
+        # --- (あなた) 表示を含む名前フォーマット関数 ---
     def format_name(uid, index, name, r_str, viewer_id):
-    return f"- 参加者{index + 1}：{name}（{r_str}）"
+        return f"- 参加者{index + 1}：{name}（{r_str}）"
+
 
     # 通常参加者（最大5人）
     normal = [
