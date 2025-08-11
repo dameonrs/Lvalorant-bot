@@ -14,7 +14,7 @@ def debug_log(*args):
 dlog = debug_log  # 呼び出し側の短縮名
 
 TOKEN = os.getenv("DISCORD_TOKEN")
-CHANNEL_ID = 1394558478550433802
+CHANNEL_ID = int(os.getenv("CHANNEL_ID"))
 
 intents = discord.Intents.default()
 intents.message_content = True
