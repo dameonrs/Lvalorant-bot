@@ -99,10 +99,7 @@ async def update_embed(message_id, viewer_id=None):
 
     # --- (あなた) 表示を含む名前フォーマット関数 ---
     def format_name(uid, index, name, r_str, viewer_id):
-        label = f"参加者{index + 1}"
-        if viewer_id is not None and uid == viewer_id:
-            label += " (あなた)"
-        return f"- {label}"
+    return f"- 参加者{index + 1}：{name}（{r_str}）"
 
     # 通常参加者（最大5人）
     normal = [
