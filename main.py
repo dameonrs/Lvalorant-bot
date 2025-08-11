@@ -6,6 +6,21 @@ import os
 from collections import OrderedDict
 from keep_alive import keep_alive
 
+# ↓ ここから診断用コードを追加
+import sys, logging
+
+TOKEN = os.getenv("DISCORD_TOKEN")
+raw_ch = os.getenv("CHANNEL_ID", "")
+print("[BOOT] TOKEN set? ->", bool(TOKEN), "| CHANNEL_ID raw ->", repr(raw_ch))
+try:
+    CHANNEL_ID = int(str(raw_ch).strip())
+except Exception as e:
+    print("❌ CHANNEL_ID invalid:", e)
+    sys.exit(1)
+
+# discord.py のログ出力を有効化
+discord.utils.setup_logging(level=logging.INFO)
+
 # --- デバッグユーティリティ ---
 DEBUG = os.getenv("DEBUG_LOG") == "1"
 def debug_log(*args):
