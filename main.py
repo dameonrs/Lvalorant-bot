@@ -91,31 +91,32 @@ async def update_embed(message_id, viewer_id=None):
     ordered = list(participants.items())  # [(uid, (name, r_str, r, t)), ...]
     count = len(ordered)
 
-    if count >= 5:
+        if count >= 5:
         # --- 変更①: フルパ時はランク無制限、先頭5名が通常参加 ---
         for i, (uid, (name, r_str, r, t)) in enumerate(ordered):
             (temp_normals if i < 5 else temp_full).append((uid, name, r_str))
-    else:  # ← if と同じ階層に
+    else:
         # --- 修正：'基準内で通常枠に入れた人数'で制御する ---
-    normals_count = 0  # 先頭(基準)を含めた「基準内の通常枠」人数
+        normals_count = 0  # 先頭(基準)を含めた「基準内の通常枠」人数
 
-    for i, (uid, (name, r_str, r, t)) in enumerate(ordered):
-        if i == 0:
-            # 先頭は基準として常に通常枠
-            temp_normals.append((uid, name, r_str))
-            normals_count = 1
-            continue
+        for i, (uid, (name, r_str, r, t)) in enumerate(ordered):
+            if i == 0:
+                # 先頭は基準として常に通常枠
+                temp_normals.append((uid, name, r_str))
+                normals_count = 1
+                continue
 
-        # 基準との適合可否
-        is_valid = (base_rank is not None) and is_valid_by_base(r, t, base_rank, base_tier)
+            # 基準との適合可否
+            is_valid = (base_rank is not None) and is_valid_by_base(r, t, base_rank, base_tier)
 
-        if is_valid and normals_count < 3:
-            # 基準内の1〜3人目は通常枠へ
-            temp_normals.append((uid, name, r_str))
-            normals_count += 1
-        else:
-            # 基準外は常に待機／または基準内の4人目以降は待機へ
-            temp_full.append((uid, name, r_str))
+            if is_valid and normals_count < 3:
+                # 基準内の1〜3人目は通常枠へ
+                temp_normals.append((uid, name, r_str))
+                normals_count += 1
+            else:
+                # 基準外は常に待機／または基準内の4人目以降は待機へ
+                temp_full.append((uid, name, r_str))
+
 
     dlog("temp_normals:", [(u, n) for u, n, _ in temp_normals],
          "temp_full:", [(u, n) for u, n, _ in temp_full])
@@ -236,8 +237,10 @@ async def post_party_embed():
     embed.set_footer(text="参加希望の方は下のボタンをクリックしてください")
 
     # 最初は message_id を渡せないので None で出す → 直後に update_embed で差し替え
-    message = await channel.send(content='@everyone', embed=embed, view=JoinButtonView(None))
+        # まずは View なしで送信（超高速クリック対策）
+    message = await channel.send(content='@everyone', embed=embed)
 
+    # セッション登録
     party_sessions[message.id] = {
         "label": label,
         "participants": OrderedDict(),
@@ -245,7 +248,10 @@ async def post_party_embed():
         "reminded": set(),
         "next_posted": False
     }
+
+    # View を付けて更新
     await update_embed(message.id)
+
 
 @tasks.loop(minutes=1)
 async def daily_poster():
