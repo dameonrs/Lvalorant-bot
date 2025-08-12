@@ -98,8 +98,8 @@ async def update_embed(message_id, viewer_id=None):
         # --- 変更①: フルパ時はランク無制限、先頭5名が通常参加 ---
         for i, (uid, (name, r_str, r, t)) in enumerate(ordered):
             (temp_normals if i < 5 else temp_full).append((uid, name, r_str))
-   else:
-    # --- 修正：'基準内で通常枠に入れた人数'で制御する ---
+    else:  # ← if と同じ階層に
+        # --- 修正：'基準内で通常枠に入れた人数'で制御する ---
     normals_count = 0  # 先頭(基準)を含めた「基準内の通常枠」人数
 
     for i, (uid, (name, r_str, r, t)) in enumerate(ordered):
