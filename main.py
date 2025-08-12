@@ -28,9 +28,6 @@ def debug_log(*args):
         print("[DEBUG]", *args, flush=True)
 dlog = debug_log  # 呼び出し側の短縮名
 
-TOKEN = os.getenv("DISCORD_TOKEN")
-CHANNEL_ID = int(os.getenv("CHANNEL_ID"))
-
 intents = discord.Intents.default()
 intents.message_content = True
 bot = commands.Bot(command_prefix="!", intents=intents)
