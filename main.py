@@ -98,16 +98,27 @@ async def update_embed(message_id, viewer_id=None):
         # --- 変更①: フルパ時はランク無制限、先頭5名が通常参加 ---
         for i, (uid, (name, r_str, r, t)) in enumerate(ordered):
             (temp_normals if i < 5 else temp_full).append((uid, name, r_str))
-    else:
-        # --- 変更②: 4人目(インデックス3)は必ず待機 ---
-        for i, (uid, (name, r_str, r, t)) in enumerate(ordered):
-            if i == 3:
-                temp_full.append((uid, name, r_str))
-                continue
-            if i == 0 or (base_rank is not None and is_valid_by_base(r, t, base_rank, base_tier)):
-                temp_normals.append((uid, name, r_str))
-            else:
-                temp_full.append((uid, name, r_str))
+   else:
+    # --- 修正：'基準内で通常枠に入れた人数'で制御する ---
+    normals_count = 0  # 先頭(基準)を含めた「基準内の通常枠」人数
+
+    for i, (uid, (name, r_str, r, t)) in enumerate(ordered):
+        if i == 0:
+            # 先頭は基準として常に通常枠
+            temp_normals.append((uid, name, r_str))
+            normals_count = 1
+            continue
+
+        # 基準との適合可否
+        is_valid = (base_rank is not None) and is_valid_by_base(r, t, base_rank, base_tier)
+
+        if is_valid and normals_count < 3:
+            # 基準内の1〜3人目は通常枠へ
+            temp_normals.append((uid, name, r_str))
+            normals_count += 1
+        else:
+            # 基準外は常に待機／または基準内の4人目以降は待機へ
+            temp_full.append((uid, name, r_str))
 
     dlog("temp_normals:", [(u, n) for u, n, _ in temp_normals],
          "temp_full:", [(u, n) for u, n, _ in temp_full])
