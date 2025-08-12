@@ -91,7 +91,7 @@ async def update_embed(message_id, viewer_id=None):
     ordered = list(participants.items())  # [(uid, (name, r_str, r, t)), ...]
     count = len(ordered)
 
-        if count >= 5:
+    if count >= 5:
         # --- 変更①: フルパ時はランク無制限、先頭5名が通常参加 ---
         for i, (uid, (name, r_str, r, t)) in enumerate(ordered):
             (temp_normals if i < 5 else temp_full).append((uid, name, r_str))
@@ -117,14 +117,12 @@ async def update_embed(message_id, viewer_id=None):
                 # 基準外は常に待機／または基準内の4人目以降は待機へ
                 temp_full.append((uid, name, r_str))
 
-
     dlog("temp_normals:", [(u, n) for u, n, _ in temp_normals],
          "temp_full:", [(u, n) for u, n, _ in temp_full])
 
-        # --- (あなた) 表示を含む名前フォーマット関数 ---
+    # 公開用（viewer_idは使わない）
     def format_name(uid, index, name, r_str, viewer_id):
         return f"- 参加者{index + 1}：{name}（{r_str}）"
-
 
     # 通常参加者（最大5人）
     normal = [
