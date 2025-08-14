@@ -10,7 +10,7 @@ from keep_alive import keep_alive
 import sys, logging
 
 TOKEN = os.getenv("DISCORD_TOKEN")
-raw_ch = os.getenv("CHANNEL_ID", "")
+raw_ch = os.getenv("CHANNEL_ID")
 print("[BOOT] TOKEN set? ->", bool(TOKEN), "| CHANNEL_ID raw ->", repr(raw_ch))
 try:
     CHANNEL_ID = int(str(raw_ch).strip())
