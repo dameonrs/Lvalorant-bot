@@ -5,6 +5,30 @@ import pytz
 import os
 from collections import OrderedDict
 from keep_alive import keep_alive
+import asyncio, time
+from collections import defaultdict
+
+_last_click = defaultdict(dict)  # message_id -> {user_id: timestamp}
+
+def rapid_click(message_id: int, user_id: int, window: float = 0.8) -> bool:
+    """同一ユーザーの0.8秒以内の多重押下を無視"""
+    now = time.monotonic()
+    last = _last_click[message_id].get(user_id, 0.0)
+    if now - last < window:
+        return True
+    _last_click[message_id][user_id] = now
+    return False
+
+async def safe_followup_send(interaction: discord.Interaction, content: str = None, *, view=None, ephemeral: bool = True):
+    """Cloudflare 1015(429) 対策：軽いバックオフで最大3回再試行"""
+    for attempt in range(3):
+        try:
+            return await interaction.followup.send(content, view=view, ephemeral=ephemeral)
+        except discord.HTTPException as e:
+            if getattr(e, "status", None) == 429:
+                await asyncio.sleep(1.0 * (attempt + 1))  # 1s, 2s, 3s
+                continue
+            raise
 
 # ↓ ここから診断用コードを追加
 import sys, logging
@@ -158,6 +182,19 @@ async def update_embed(message_id, viewer_id=None):
         session["next_posted"] = True
         if len(party_sessions) < max_party_count:
             await post_party_embed()
+
+# ここからは「関数の外」（インデント0）
+def make_personal_join_view(message_id: int) -> discord.ui.View:
+    v = discord.ui.View(timeout=None)
+    v.add_item(discord.ui.Button(label="🎮 参加する", style=discord.ButtonStyle.primary, disabled=True))
+    v.add_item(RankSelect(message_id))
+    return v
+
+def make_personal_cancel_view() -> discord.ui.View:
+    v = discord.ui.View(timeout=None)
+    v.add_item(discord.ui.Button(label="❌ 取り消す", style=discord.ButtonStyle.danger, disabled=True))
+    return v
+
 class JoinButtonView(discord.ui.View):
     def __init__(self, message_id):
         super().__init__(timeout=None)
@@ -165,29 +202,61 @@ class JoinButtonView(discord.ui.View):
 
     @discord.ui.button(label="🎮 参加する", style=discord.ButtonStyle.primary)
     async def join(self, interaction: discord.Interaction, button: discord.ui.Button):
+        # 1) 初回応答は defer（タイムアウト&連打を避ける）
+        await interaction.response.defer(ephemeral=True)
+
+        # 2) 擬似連打ガード（0.8秒）
+        if rapid_click(self.message_id, interaction.user.id):
+            return await safe_followup_send(
+                interaction, "処理中です…少し待ってください。", view=make_personal_join_view(self.message_id)
+            )
+
         session = party_sessions[self.message_id]
-        if session['label'] == 'パーティA' and datetime.datetime.now(pytz.timezone("Asia/Tokyo")) >= session['start_time']:
-            await interaction.response.send_message("⚠️ 開始時間を過ぎているため、参加できません。", ephemeral=True)
-            return
+        jst = pytz.timezone("Asia/Tokyo")
+        if session['label'] == 'パーティA' and datetime.datetime.now(jst) >= session['start_time']:
+            return await safe_followup_send(
+                interaction, "⚠️ 開始時間を過ぎているため、参加できません。", view=make_personal_join_view(self.message_id)
+            )
 
         if interaction.user.id in session['participants']:
-            await interaction.response.send_message("✅ 既に参加済みです。", ephemeral=True)
+            return await safe_followup_send(
+                interaction, "✅ 既に参加済みです。", view=make_personal_join_view(self.message_id)
+            )
         else:
-            await interaction.response.send_message("🔽 ランクを選んでください：", view=RankSelectView(self.message_id), ephemeral=True)
+            # 本人だけ：Joinグレーアウト＋ランクセレクト
+            return await safe_followup_send(
+                interaction, "🔽 ランクを選んでください：", view=make_personal_join_view(self.message_id)
+            )
 
     @discord.ui.button(label="❌ 取り消す", style=discord.ButtonStyle.danger)
     async def cancel(self, interaction: discord.Interaction, button: discord.ui.Button):
+        # 1) 初回応答は defer
+        await interaction.response.defer(ephemeral=True)
+
+        # 2) 擬似連打ガード
+        if rapid_click(self.message_id, interaction.user.id):
+            return await safe_followup_send(
+                interaction, "処理中です…少し待ってください。", view=make_personal_cancel_view()
+            )
+
         session = party_sessions[self.message_id]
-        if session['label'] == 'パーティA' and datetime.datetime.now(pytz.timezone("Asia/Tokyo")) >= session['start_time']:
-            await interaction.response.send_message("⚠️ 開始時間を過ぎているため、取り消しできません。", ephemeral=True)
-            return
+        jst = pytz.timezone("Asia/Tokyo")
+        if session['label'] == 'パーティA' and datetime.datetime.now(jst) >= session['start_time']:
+            return await safe_followup_send(
+                interaction, "⚠️ 開始時間を過ぎているため、取り消しできません。", view=make_personal_cancel_view()
+            )
 
         if interaction.user.id in session['participants']:
             del session['participants'][interaction.user.id]
             await update_embed(self.message_id, interaction.user.id)
-            await interaction.response.send_message("❌ 取り消しました。", ephemeral=True)
+            return await safe_followup_send(
+                interaction, "❌ 取り消しました。", view=make_personal_cancel_view()
+            )
         else:
-            await interaction.response.send_message("⚠️ まだ参加していません。", ephemeral=True)
+            # ← ここも followup + 個人ビューにする（今は send_message のままだった）
+            return await safe_followup_send(
+                interaction, "⚠️ まだ参加していません。", view=make_personal_cancel_view()
+            )
 
 class RankSelect(discord.ui.Select):
     def __init__(self, message_id):
