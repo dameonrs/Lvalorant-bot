@@ -289,7 +289,7 @@ async def post_party_embed():
     latest_party_index += 1
     label = party_labels[latest_party_index]
     now = datetime.datetime.now(pytz.timezone("Asia/Tokyo"))
-    start_time = now.replace(hour=21, minute=0, second=0, microsecond=0) if label == 'パーティA' else None
+    start_time = now.replace(hour=22, minute=0, second=0, microsecond=0) if label == 'パーティA' else None
 
     channel = bot.get_channel(CHANNEL_ID)
     embed = discord.Embed(
